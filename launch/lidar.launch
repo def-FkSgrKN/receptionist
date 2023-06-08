@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<launch>
+  <!-- <include file="$(find turtlebot_bringup)/launch/minimal.launch"/> -->
+
+  <!-- open_manipulator_controllerもlaunchファイルから起動できるが終了するときにノードが終了するので別の端末で手動で起動するのをすすめる -->
+  <!-- <include file="$(find open_manipulator_controller)/launch/open_manipulator_controller.launch"/> -->
+
+  <include file="$(find rplidar_ros)/launch/rplidar.launch"/>
+
+  <!-- <node pkg="carry_my_luggage" name="main_system" type="main_system.py" output="screen" />
+  <node pkg="carry_my_luggage" name="control_system" type="control_system.py" output="screen" />
+  <node pkg="carry_my_luggage" name="image_system" type="image_system.py" output="screen" />
+  <node pkg="carry_my_luggage" name="audio_system" type="audio_system.py" output="screen" />
+  <node pkg="carry_my_luggage" name="arm" type="arm.py" output="screen" />
+  <node pkg="carry_my_luggage" name="move_arm" type="move_arm.py" output="screen" /> -->
+  <node pkg="carry_my_luggage" name="lidar" type="lidar.py" output="screen" />
+</launch>

@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+
+<launch>
+  <include file="$(find open_manipulator_controller)/launch/open_manipulator_controller.launch"/>
+
+  <node pkg="carry_my_luggage" name="arm" type="arm.py" required="true" output="screen" />
+  <node pkg="carry_my_luggage" name="shigoto_shimasu" type="move_arm.py" required="true" output="screen" />
+</launch>
