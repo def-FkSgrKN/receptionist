@@ -1,3 +1,6 @@
+#!/usr/bin/env python3.8
+# -*- coding: utf-8 -*-
+
 import torch
 import cv2
 import numpy as np
