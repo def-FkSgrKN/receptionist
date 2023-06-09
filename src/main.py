@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import rospy
+import time
 from geometry_msgs.msg import Twist
 
 class Main:
@@ -9,16 +10,40 @@ class Main:
         rospy.init_node("main")
                
         # control
-        self.control_vel_pub = rospy.Publisher("/control_system/cmd_vel", Twist, queue_size=1)
+        self.velocity_pub = rospy.Publisher("/mobile_base/commands/velocity", Twist, queue_size=1)
         
     
+    def control(self, move_time, linear_x=0, angular_z=0):
+        start_time = time.time() #開始時刻
+        twist = Twist()
+        
+        twist.linear.x = linear_x
+        twist.angular.z = angular_z
+        
+        while True:
+            end_time = time.time() #終了時刻
+            #print(end_time - start_time)
+            
+            self.velocity_pub.publish(twist)
+            
+            if end_time - start_time > move_time:
+                break
+            
+    
     def main(self):
-        t = Twist()
         
-        t.angular.z = -0.4
-        t.linear.x = 1
+        time.sleep(2)
         
-        self.control_vel_pub.publish(t)
+        start_time = time.time() #開始時刻
+        TURN_TIME = 2
+        
+        """
+        椅子と古参のゲストの集合写真を撮影する
+        """
+        self.control(2, angular_z=1)
+        time.sleep(1)
+        self.control(2, angular_z=-1)       
+        
         
 if __name__ == "__main__":
     main_instance = Main()
