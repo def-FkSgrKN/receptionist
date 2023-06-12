@@ -9,5 +9,6 @@
 
   <node pkg="receptionist" name="main" type="main.py" output="screen" />
   <node pkg="receptionist" name="control" type="control.py" output="screen" />
+  <node pkg="receptionist" name="image" type="image.py" output="screen" />
  
 </launch>
