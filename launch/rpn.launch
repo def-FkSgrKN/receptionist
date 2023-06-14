@@ -8,7 +8,8 @@
   <!--include file="$(find rplidar_ros)/launch/rplidar.launch"/-->
 
   <node pkg="receptionist" name="main" type="main.py" output="screen" />
-  <node pkg="receptionist" name="control" type="control.py" output="screen" />
-  <node pkg="receptionist" name="image" type="image.py" output="screen" />
+  <!--node pkg="receptionist" name="control" type="control.py" output="screen" /-->
+  <!--node pkg="receptionist" name="image" type="image.py" output="screen" /-->
+  <node pkg="receptionist" name="image36" type="image36.py" output="screen" />
  
 </launch>
