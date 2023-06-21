@@ -1,12 +1,10 @@
 import cv2
 import os
 
-def main():
+def img_compose(FOLDER, IMG):
     """
     stitchingモジュールを使用した場合
     """
-    FOLDER = "panolama_img_sample/"
-    IMG = "scene"
 
     count = 1 #画像が何枚目かを数える
     img_list = [] #合成する画像のリスト
@@ -29,12 +27,31 @@ def main():
 
     stitcher = cv2.Stitcher_create()
     img_stitched = stitcher.stitch(img_list)[1]
-    cv2.imwrite("stiched_img.png", img_stitched)
+    
+    return img_stitched
+    #cv2.imwrite(FOLDER + "stiched_img.png", img_stitched)
+
+    # 合成画像を表示
+    #cv2.imshow('stiched_img', img_stitched)
+    #cv2.waitKey(0)
+    #cv2.destroyAllWindows()
+
+
+def main():
+    
+    FOLDER = "/home/ri-one/catkin_ws/src/receptionist/src/short_memory/"
+    IMG = "chair_and_guest"
+    
+    img_stitched = img_compose(FOLDER, IMG)
+    
+    #cv2.imwrite(FOLDER + "stiched_img.png", img_stitched)
 
     # 合成画像を表示
     cv2.imshow('stiched_img', img_stitched)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
+    
+    
 
 if __name__ == "__main__":
     main()

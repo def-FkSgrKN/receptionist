@@ -52,6 +52,7 @@ find_package(catkin REQUIRED COMPONENTS
 add_message_files(
   FILES
   Img_detect.msg
+  Img_take_pictures.msg
 )
 
 ## Generate services in the 'srv' folder

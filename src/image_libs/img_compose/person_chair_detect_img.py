@@ -88,7 +88,8 @@ def main():
   """
   画像を読み込む
   """
-  imgs = cv2.imread("stiched_img.png")
+  FOLDEER = "/home/ri-one/catkin_ws/src/receptionist/src/short_memory/"
+  imgs = cv2.imread(FOLDEER + "stiched_img.png")
 
   HEIGHT, WIDTH = imgs.shape[:2]    
 
@@ -210,7 +211,7 @@ def main():
           elif person_box_cx_list[0] <= WIDTH/2:
             chair_directions = ["left"]
           
-  cv2.imwrite("stiched_detect_img.png", imgs)  
+  cv2.imwrite(FOLDEER + "stiched_detect_img.png", imgs)  
       
   #--- 描画した画像を表示
   cv2.imshow('color',imgs)

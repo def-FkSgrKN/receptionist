@@ -19,8 +19,10 @@ import torch
 import cv2
 import numpy as np
 import time
+import os
 
-from receptionist.msg import Img_detect
+from receptionist.msg import Img_detect, Img_take_pictures
+from image_libs.panolama_img import img_compose
 
 """
 [方法1]
@@ -72,12 +74,28 @@ class Image36():
     #publisher
     self.image_pub = rospy.Publisher("/image_detect", Img_detect, queue_size=1)
     
+    #subscriber
+    rospy.Subscriber("/image_take_pictures", Img_take_pictures, self.image_take_pictures_callback)
+    self.img_take_pictures_command = ""
+    
     #camera
-    self.PC_CAM_NUM = 2 #PC内蔵カメラのデバイス番号
+    self.PC_CAM_NUM = 0 #PC内蔵カメラのデバイス番号
     self.camera = cv2.VideoCapture(self.PC_CAM_NUM)        
     
     self.PERSON_CLS_STR = "person"
     self.CHAIR_CLS_STR = "chair"
+    
+    #take pictures
+    self.img_count = 0 #撮影枚数
+    self.FOLDER = "/home/ri-one/catkin_ws/src/receptionist/src/short_memory/"
+    self.IMG = "chair_and_guest"
+    
+    self.compose_count = 0 #合成回数
+
+
+  #callback関数
+  def image_take_pictures_callback(self, msg):
+      self.img_take_pictures_command = msg.command
     
 
   #椅子を中心座標が小さい順に並び替え、その要素を返す関数
@@ -92,6 +110,26 @@ class Image36():
       idx_sorted_list.append(value_list[value_argsorted_ndarray[i]])
       
     return idx_sorted_list
+
+
+  #特定のフォルダ内の写真をすべて削除する
+  def forget_all_memory(self, FOLDER, IMG):
+
+      count = 1
+
+      while True:
+          
+          img_path = FOLDER + IMG + str(count) + ".png"
+          count += 1
+
+          #画像を読む
+          if os.path.isfile(img_path):
+              os.remove(img_path)
+              
+          #存在しなければ抜ける
+          else:
+              break
+
 
   #メインルーチン
   def main(self):
@@ -118,6 +156,8 @@ class Image36():
 
         
     cap_count = 0 #1回だけ画像のサイズを取得する。
+    
+    change_imgs = 0
 
     #--- 画像のこの位置より左で検出したら、ヒットとするヒットエリアのためのパラメータ ---
     #pos_x = 240
@@ -128,6 +168,12 @@ class Image36():
     WIDTH = 0 #カメラから取得した画像の幅を保持
 
     time.sleep(1)
+
+    take_pictures_start_time = time.time()
+    take_pictures_end_time = 0
+    TAKE_PICTURES_DELTA_TIME = 1 #[s]
+
+
 
     while True:
 
@@ -140,8 +186,64 @@ class Image36():
         HEIGHT, WIDTH = imgs.shape[:2]    
         print("幅:" + str(WIDTH) + "、高さ:" + str(HEIGHT))
         cap_count = 1 
+        
+        
+      """
+      主部からの指示で写真を撮影する
+      """      
+      if self.img_take_pictures_command == "take":
+        
+        take_pictures_end_time = time.time()
+        
+        #前のデータを削除する。
+        if self.img_count == 0:
+          self.forget_all_memory(self.FOLDER, self.IMG)
+          self.img_count += 1
+          self.compose_count = 0
+          
+          
+        #一定時間経過後写真を撮る
+        elif take_pictures_end_time - take_pictures_start_time > TAKE_PICTURES_DELTA_TIME:
+          
+          take_pictures_start_time = take_pictures_end_time
+          
+          img_path = self.FOLDER + self.IMG + str(self.img_count) + ".png" #画像の保存場所
+          cv2.imwrite(img_path, imgs) # 画像を保存する
+          self.img_count += 1
 
 
+      #画像を合成し、検出する
+      elif self.img_take_pictures_command == "stop" and self.compose_count == 0:
+        
+        composed = img_compose(self.FOLDER, self.IMG)
+        results = model(composed, size=160) 
+        
+        for *box, conf, cls in results.xyxy[0]:  # xyxy, confidence, class
+
+          box_c_x = int((int(box[0]) + int(box[2]))/2) #中心x座標
+          box_c_y = int((int(box[1]) + int(box[3]))/2) #中心y座標
+          width = int(box[2] - box[0]) #幅
+          height = int(box[3] - box[1]) #高さ　
+          
+          x_mid_list.append(box_c_x)
+          y_mid_list.append(box_c_y)
+          width_list.append(width)
+          height_list.append(height)
+          
+          #枠描画
+          cv2.rectangle(
+              composed,
+              (int(box[0]), int(box[1])), #xmin, ymin
+              (int(box[2]), int(box[3])), #xmax, ymax
+              color=frame_color, #枠の色
+              thickness=2, #幅2
+              )
+          
+        cv2.imshow("composed", composed)
+        
+        self.compose_count = 1
+        
+        
 
       """
       モデルから結果を取得する
@@ -282,75 +384,21 @@ class Image36():
       self.Img_detect_rosmsg.y_mid_list = y_mid_list
       self.Img_detect_rosmsg.width_list = width_list
       self.Img_detect_rosmsg.height_list = height_list
+
+      self.image_pub.publish(self.Img_detect_rosmsg) #出版
+
+
+      #print("self.img_take_pictures_command=" + str(self.img_take_pictures_command))
+     
+      
+
+          
+          
+      
       
       #print("self.Img_detect_rosmsg.x_mid_list=" + str(self.Img_detect_rosmsg.x_mid_list))
       
-      """
-      出版!
-      """
-      self.image_pub.publish(self.Img_detect_rosmsg)
       
-
-      """
-      人が座っている椅子の数に応じて、椅子の方向の指し方を変える
-      """
-      """
-      chair_directions = ["left", "mid", "right"]
-      #椅子が3つ検出された場合 (どの椅子にもゲストが座っていない)
-      if chair_num == 3:
-        chair_directions = ["left", "mid", "right"]
-
-      #椅子が2つ検出された場合 (1つの椅子にもゲストが座っている)
-      if chair_num == 2:
-        chair_directions = ["left", "right"]
-
-      #椅子が1つ検出された場合 (2つの椅子にもゲストが座っている)
-      if chair_num == 1:
-
-        #ロボットから見て右に椅子がある場合
-        if person_box_cx_list[0] > WIDTH/2:
-          chair_directions = ["right"]
-
-        #ロボットから見て左に椅子がある場合
-        elif person_box_cx_list[0] <= WIDTH/2:
-          chair_directions = ["left"]
-        
-      
-      #以下のような矩形を追跡する(距離と位置で挙動を変える。)
-
-      """
-      
-      """
-      if len(box_w_list) != 0:
-        
-        box_w_max = max(box_w_list) #最大となる矩形の幅を取得する
-        box_w_max_idx = box_w_list.index(box_w_max) #最大となる矩形の添字を取得する
-        box_cx = box_cx_list[box_w_max_idx] #その添字番目の矩形の中心のx座標を取得する
-
-        if box_w_max < 350:
-            #print(str(i) + "番目の人が遠い")
-            robo_p_dis = 0 #ロボットは人が中央に来るまで前に進む
-
-        elif box_w_max >= 350 and box_w_max <= 550:
-            #print(str(i) + "番目の人が中央の距離")
-            robo_p_dis = 1 #ロボットはそのまま
-
-        elif box_w_max > 550:
-            #print(str(i) + "番目の人が近い")
-            robo_p_dis = 2 #ロボットは人が中央に来るまで後ろに下がる
-
-        if box_cx < width/3:
-            #print(str(i) + "番目の人が左にいる")
-            robo_p_drct = 0 #ロボットは人が中央に来るまで左回りする
-
-        elif box_cx > width/3 and box_cx < width * 2/3:
-            #print(str(i) + "番目の人が中央の方向")
-            robo_p_drct = 1 #ロボットはそのまま
-
-        elif box_cx > width * 2/3:
-            #print(str(i) + "番目の人が右にいる")
-            robo_p_drct = 2 #ロボットは人が中央に来るまで右回りする
-      """
       
 
       #print("追跡する矩形の添字番号=" + str(box_w_max_idx))
