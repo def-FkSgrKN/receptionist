@@ -73,7 +73,7 @@ class Image36():
     self.image_pub = rospy.Publisher("/image_detect", Img_detect, queue_size=1)
     
     #camera
-    self.PC_CAM_NUM = 0 #PC内蔵カメラのデバイス番号
+    self.PC_CAM_NUM = 2 #PC内蔵カメラのデバイス番号
     self.camera = cv2.VideoCapture(self.PC_CAM_NUM)        
     
     self.PERSON_CLS_STR = "person"

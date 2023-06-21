@@ -48,7 +48,7 @@ class Main:
         # udp
         self.IP_ADRESS = "127.0.0.1"
         self.PORT = 8890
-        self.UDP_SERVER = UDP_Server(self.IP_ADRESS, self.PORT)
+        #self.UDP_SERVER = UDP_Server(self.IP_ADRESS, self.PORT)
         
         self.img_addr = ""
         
@@ -65,7 +65,7 @@ class Main:
         #self.person_detect_distance = msg.data
         
     
-    
+    #時間制御の関数
     def control(self, twist, move_time, linear_x=0, angular_z=0):
         start_time = time.time() #開始時刻
         
@@ -166,95 +166,130 @@ class Main:
                     
     def detect_old_guests_and_chair(self):
         
+        tracking_state = 1
         
-            
-        #コピーすることで、中のif文やwhile文のときに新しいデータに書き換えられ、listの長さが変わることを防ぐ
+        turn_start_time = 0
+        turn_end_time = 0
+        turn_delta_time = 0
         
-        img_detect_class_list = []
-        img_detect_x_mid_list = []
-        
-        if len(self.img_detect_class_list) != 0:          
-            img_detect_class_list = list(self.img_detect_class_list).copy()
-            img_detect_x_mid_list = list(self.img_detect_x_mid_list).copy()
-        
-        #何か写っている
-        if len(img_detect_class_list) != 0:
-            
-            #ロボットから見て左に映る順に並び替え
-            #numpyのargsortを使う
-            x_mid_ndarray = np.array(img_detect_x_mid_list)
-            x_mid_ndarray_sorted_list = np.argsort(x_mid_ndarray).tolist()
-            
-            #人やゲストを並び替え  
-            for i in range(len(img_detect_class_list)):
-                print(str(img_detect_class_list[x_mid_ndarray_sorted_list[i]]) + ":" + str(img_detect_x_mid_list[x_mid_ndarray_sorted_list[i]]))
-            """
-            chair:369
-            person:547
-            """ 
-            
-            
+        while True:
+                
             twist = Twist()
+                
+            #コピーすることで、中のif文やwhile文のときに新しいデータに書き換えられ、listの長さが変わることを防ぐ
+            
+            img_detect_class_list = []
+            img_detect_x_mid_list = []
+            
+            if len(self.img_detect_class_list) != 0:          
+                img_detect_class_list = list(self.img_detect_class_list).copy()
+                img_detect_x_mid_list = list(self.img_detect_x_mid_list).copy()
+            
+            #何か写っている
+            if len(img_detect_class_list) != 0:
+                
+                #ロボットから見て左に映る順に並び替え
+                #numpyのargsortを使う
+                x_mid_ndarray = np.array(img_detect_x_mid_list)
+                x_mid_ndarray_sorted_list = np.argsort(x_mid_ndarray).tolist()
+                
+                #人やゲストを並び替え  
+                for i in range(len(img_detect_class_list)):
+                    print(str(img_detect_class_list[x_mid_ndarray_sorted_list[i]]) + ":" + str(img_detect_x_mid_list[x_mid_ndarray_sorted_list[i]]))
+                """
+                chair:369
+                person:547
+                """ 
         
             
-            #1. 一番左側に見えるものを追いかける
-            while True: 
-                tracking_x_mid = img_detect_x_mid_list[x_mid_ndarray_sorted_list[0]]
-                
-                if tracking_x_mid > self.WIDTH * 5/12 and tracking_x_mid < self.WIDTH * 7/12:
-                    twist.angular.z = 0
-                    break
-                        
-                else:
-                    twist.angular.z = -(tracking_x_mid - self.WIDTH/2) / (self.WIDTH/2) * 1.8
-            
-            
-            #2. 一番右側に見えるものを追いかける
-            while True: 
-                tail_idx = len(img_detect_class_list) - 1 #末尾の添字
-                tracking_x_mid = img_detect_x_mid_list[x_mid_ndarray_sorted_list[tail_idx]]
-                
-                if tracking_x_mid > self.WIDTH * 5/12 and tracking_x_mid < self.WIDTH * 7/12:
-                    twist.angular.z = 0
-                    break
-                        
-                else:
-                    twist.angular.z = -(tracking_x_mid - self.WIDTH/2) / (self.WIDTH/2) * 1.8
-            
-            
-            #3. 中央の椅子を追いかける
-            while True: 
-                tracking_x_mid = img_detect_x_mid_list[x_mid_ndarray_sorted_list[1]]
-                
-                if tracking_x_mid > self.WIDTH * 5/12 and tracking_x_mid < self.WIDTH * 7/12:
-                    twist.angular.z = 0
-                    break
-                        
-                else:
-                    twist.angular.z = -(tracking_x_mid - self.WIDTH/2) / (self.WIDTH/2) * 1.8
-                
-            print("\n")
-            
-            #関数内関数、添字番号の物体を追いかける
-            def track_thing(index):
-                while True: 
-                    tracking_x_mid = img_detect_x_mid_list[x_mid_ndarray_sorted_list[index]]
+                print("tracking_state=" + str(tracking_state))
+                #1. 一番左側に見えるものを追いかける
+                if tracking_state == 1: 
+                    tail_idx = len(img_detect_class_list) - 1 #末尾の添字
+                    tracking_x_mid = img_detect_x_mid_list[x_mid_ndarray_sorted_list[tail_idx]]
                     
-                    if tracking_x_mid > self.WIDTH * 5/12 and tracking_x_mid < self.WIDTH * 7/12:
-                        twist.angular.z = 0
-                        break
-                            
+                    #一番左に見える椅子が画面の左端に来るまで回転する
+                    if tracking_x_mid <= 1/6 * self.WIDTH:
+                        print("OK")
+                        tracking_state = 2
+                        turn_start_time = time.time()
+                    
+                    #目標角度が近くなったときに通りすぎないようにする
+                    elif tracking_x_mid > 1/6 * self.WIDTH and tracking_x_mid < 2/6:
+                        twist.angular.z = -0.7
+                        print("tracking_x_mid=" + str(tracking_x_mid))
+                        
                     else:
-                        twist.angular.z = -(tracking_x_mid - self.WIDTH/2) / (self.WIDTH/2) * 1.8  
+                        twist.angular.z = -1
+                        print("tracking_x_mid=" + str(tracking_x_mid))
+                                    
                 
+
+                #2. 一番右側に見えるものを追いかける
+                elif tracking_state == 2: 
+                    tracking_x_mid = img_detect_x_mid_list[x_mid_ndarray_sorted_list[0]]
                     
-    
+                    #一番左に見える椅子が画面の左端に来るまで回転する
+                    if tracking_x_mid >= 5/6 * self.WIDTH:
+                        print("OK")
+                        turn_end_time = time.time() #左回転の終了時刻
+                        turn_delta_time = turn_end_time - turn_start_time #左回転にかかった時間を計測
+                        
+                        turn_start_time = time.time() #スタート時刻を初期化 右回転の開始時刻
+                        tracking_state = 3
+                        
+                    #目標角度が近くなったときに通りすぎないようにする
+                    elif tracking_x_mid > 4/6 * self.WIDTH and tracking_x_mid < 5/6:
+                        twist.angular.z = 0.7
+                        print("tracking_x_mid=" + str(tracking_x_mid)) 
+                        
+                    else:
+                        twist.angular.z = 1
+                        print("tracking_x_mid=" + str(tracking_x_mid))
+                        
+                        
+                #3. 中央の椅子を追跡する。
+                elif tracking_state == 3: 
+                    tracking_x_mid = img_detect_x_mid_list[x_mid_ndarray_sorted_list[0]]
+                    
+                    turn_end_time = time.time() #右回転の終了時刻
+                
+                    #一番左に見える椅子が画面の左端に来るまで回転する
+                    """
+                    if tracking_x_mid < 1/9 * self.WIDTH and len(img_detect_x_mid_list) >= 2:
+                        print("OK")
+                        tracking_state = 4
+                    """
+                    print("turn_delta_time=" + str(turn_delta_time))
+                    #半分の時刻でできると考える
+                    if turn_end_time - turn_start_time > turn_delta_time/2:
+                        print("OK")
+                        tracking_state = 4                 
+                               
+                    else:
+                        twist.angular.z = -1
+                        print("tracking_x_mid=" + str(tracking_x_mid))
+                
+              
+
+                
+        
+                print("\n")
+                print("turn_delta_time=" + str(turn_delta_time))
+                print("turn_start_time=" + str(turn_start_time))
+                print("turn_end_time=" + str(turn_end_time))
+                print("twist.angular.z=" + str(twist.angular.z))
+                self.velocity_pub.publish(twist)
+            
+                        
+        
         
      
     def main_ROS(self):       
         """
         椅子と古参のゲストの集合写真を撮影する
         """
+        
         
         #self.follow_new_guest()   
         
