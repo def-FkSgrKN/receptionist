@@ -4,6 +4,8 @@
 import rospy
 import time
 import numpy as np
+import statistics
+
 from geometry_msgs.msg import Twist
 
 from receptionist.msg import Img_detect, Img_take_pictures
@@ -172,7 +174,10 @@ class Main:
     """
     def invite_new_guest(self):
         
-         while True:
+        nearest_chair_identify_count = 0
+        
+        
+        while True:
                     
             twist = Twist()
             
@@ -202,12 +207,26 @@ class Main:
                         chair_w_list.append(img_detect_width_list[i])
                     
                 # 椅子が写っている
-                if len(chair_arg_w_list) != 0 and len(img_detect_class_list) != 0:
+                if len(chair_arg_w_list) != 0:
+                    
+                    #追いかける椅子の添字を一回だけ調べる
+                    if nearest_chair_identify_count == 0:
                 
-                    #最大値の要素番号を取得する。
-                    chair_w_max = max(chair_w_list)
-                    self.img_argmax_w = chair_w_list.index(chair_w_max)
+                        #最大値の要素番号を取得する。
+                        chair_w_max = max(chair_w_list)
+                        self.img_argmax_w = chair_w_list.index(chair_w_max)
+                        
+                        nearest_chair_identify_count += 1
                 
+                
+                    #配列がもとの添字の値以下になった場合、もう一度調べる
+                    if len(chair_arg_w_list) <= self.img_argmax_w:
+                        
+                        #最大値の要素番号を取得する。
+                        chair_w_max = max(chair_w_list)
+                        self.img_argmax_w = chair_w_list.index(chair_w_max)
+                        
+                    
                     
                     #総和
                     img_detect_width_sum = 0
@@ -264,6 +283,84 @@ class Main:
                     
     def detect_old_guests_and_chair(self):
         
+        nearest_chair_identify_count = 0 #一定回数以上あれば終了するための変数
+        nearest_chair_identify_idx_list = [] #最も近い椅子を最頻値で決める
+        tracking_chair_idx = 0
+        
+        #椅子の矩形が3分の1になるまで微調整
+        while True:
+            twist = Twist()
+            
+            img_detect_class_list = []
+            img_detect_x_mid_list = []
+            img_detect_width_list = []
+            
+            if len(self.img_detect_class_list) != 0:          
+                img_detect_class_list = list(self.img_detect_class_list).copy()
+                img_detect_x_mid_list = list(self.img_detect_x_mid_list).copy()
+                img_detect_width_list = list(self.img_detect_width_list).copy()
+            
+            
+            
+            chair_idx_list = []
+            chair_x_mid_list = []
+            chair_width_list = []
+                
+            if len(img_detect_class_list) != 0: 
+                for i in range(len(img_detect_class_list)):
+                    if img_detect_class_list[i] == self.CHAIR_CLS_STR:
+                        chair_idx_list.append(i)
+                        chair_x_mid_list.append(img_detect_x_mid_list[i])
+                        chair_width_list.append(img_detect_width_list[i])
+                    
+                print("chair_idx_list=" + str(chair_idx_list))
+                print("chair_x_mid_list=" + str(chair_x_mid_list))
+                print("chair_width_list=" + str(chair_width_list))
+
+                
+                if len(chair_idx_list) != 0:
+                
+                    #初回20回は追いかける椅子を調べる            
+                    if nearest_chair_identify_count < 20:
+                    
+        
+                        max_chair_width = max(chair_width_list)
+                        max_chair_index = chair_width_list.index(max_chair_width)
+                        nearest_chair_identify_idx_list.append(max_chair_index)
+                        
+                        #仮の追いかける椅子
+                        if nearest_chair_identify_count == 1:
+                            tracking_chair_idx = max_chair_index
+                        
+                        
+                        nearest_chair_identify_count += 1
+                        
+                        time.sleep(0.1)
+                        
+                        
+                    elif nearest_chair_identify_count == 20:
+                        tracking_chair_idx = statistics.mode(nearest_chair_identify_idx_list)
+                        nearest_chair_identify_count += 1
+                        
+                        
+                    elif nearest_chair_identify_count > 20:
+                        if len(self.img_detect_class_list) >= tracking_chair_idx:
+                            
+                            max_chair_width = max(chair_width_list)
+                            tracking_chair_idx = chair_width_list.index(max_chair_width)
+                        
+                        
+                        #十分に近づいていた場合    
+                        if chair_width_list[tracking_chair_idx] > self.WIDTH/2 - 20 and chair_width_list[tracking_chair_idx] < self.WIDTH/2 + 20:
+                            break
+                        
+                        
+                        
+                        
+                        
+                        
+
+            
         tracking_state = 1
         
         turn_start_time = 0
@@ -321,7 +418,7 @@ class Main:
                     tracking_x_mid = img_detect_x_mid_list[x_mid_ndarray_sorted_list[tail_idx]]
                     
                     #一番左に見える椅子が画面の左端に来るまで回転する
-                    if tracking_x_mid <= 1/5 * self.WIDTH:
+                    if tracking_x_mid <= 1/6 * self.WIDTH:
                         print("OK")
                         tracking_state = 2
                         turn_start_time = time.time()
@@ -331,12 +428,20 @@ class Main:
                         elif tracking_x_mid > 1/6 * self.WIDTH and tracking_x_mid < 2/6:
                             twist.angular.z = -0.5
                             print("tracking_x_mid=" + str(tracking_x_mid))
+                    
                         """
-                        
+                    elif tracking_x_mid <= 2/6 * self.WIDTH:
                         print("左端:" + str(img_detect_class_list[x_mid_ndarray_sorted_list[tail_idx]]))
+                        twist.angular.z = -1
+                    
+                        
+                    elif tracking_x_mid > 1/2 * self.WIDTH and len(img_detect_class_list) >= 2:
+                        print("左端:" + str(img_detect_class_list[x_mid_ndarray_sorted_list[tail_idx]]))
+                        twist.angular.z = -1
+                        
                         
                     else:
-                        twist.angular.z = -0.8
+                        twist.angular.z = -1
                         #print("tracking_x_mid=" + str(tracking_x_mid))
                                     
                 
@@ -347,13 +452,9 @@ class Main:
                     #print("img_detect_x_mid_list=" + str(img_detect_x_mid_list))
                     tracking_x_mid = img_detect_x_mid_list[x_mid_ndarray_sorted_list[0]]
                     
-                    #2つの物体が写っているうちの前半部分に着目すると
-                    if len(img_detect_x_mid_list) == 2 and detect_two_things_count == 10:
-                        print("中央:" + str(img_detect_class_list[x_mid_ndarray_sorted_list[1]]))
-                        detect_two_things_count += 1
                     
                     #一番左に見える椅子が画面の左端に来るまで回転する
-                    if tracking_x_mid >= 4/5 * self.WIDTH:
+                    if tracking_x_mid >= 5/6 * self.WIDTH:
                         print("OK")
                         turn_end_time = time.time() #左回転の終了時刻
                         turn_delta_time = turn_end_time - turn_start_time #左回転にかかった時間を計測
@@ -367,10 +468,24 @@ class Main:
                             twist.angular.z = 0.5
                             print("tracking_x_mid=" + str(tracking_x_mid)) 
                         """
+                        
+                    #elif tracking_x_mid > 3/5 * self.WIDTH and tracking_x_mid <= 4/5 * self.WIDTH:
+                    #    print("右端:" + str(img_detect_class_list[x_mid_ndarray_sorted_list[0]]))
+                    #    twist.angular.z = 0.6
+                    
+                    elif tracking_x_mid >= 4/5 * self.WIDTH:
+                        twist.angular.z = 1
+                    
+                    
+                    #2つの物体が写っているうちの前半部分に着目すると
+                    elif len(img_detect_class_list) >= 2 and tracking_x_mid < 1/2 * self.WIDTH:
+                        print("中央:" + str(img_detect_class_list[x_mid_ndarray_sorted_list[1]]))
                         print("右端:" + str(img_detect_class_list[x_mid_ndarray_sorted_list[0]]))
+                        detect_two_things_count += 1
+                        twist.angular.z = 1
                         
                     else:
-                        twist.angular.z = 0.8
+                        twist.angular.z = 1
                         #print("tracking_x_mid=" + str(tracking_x_mid))
                         
                         
@@ -394,7 +509,7 @@ class Main:
                         tracking_state = 4                 
                                
                     else:
-                        twist.angular.z = -0.8
+                        twist.angular.z = -1
                         #print("tracking_x_mid=" + str(tracking_x_mid))
 
         
@@ -403,10 +518,15 @@ class Main:
             
             else:
                 if tracking_state == 1:
-                    twist.angular.z = 0.5
+                    twist.angular.z = 1
+                    twist.linear.x = 0.15
                 
                 elif tracking_state == 2:
-                    twist.angular.z = -0.5
+                    twist.angular.z = -1
+                    twist.linear.x = 0.15
+                    
+                time.sleep(0.1)
+            
                 
                     
             self.velocity_pub.publish(twist)                
@@ -418,11 +538,13 @@ class Main:
         椅子と古参のゲストの集合写真を撮影する
         """
         
-        time.sleep(5)
+        time.sleep(8)
         
         #self.follow_new_guest()   
         
-        self.invite_new_guest()
+        #self.invite_new_guest()
+        
+        self.detect_old_guests_and_chair()
         
         """
         self.Img_take_pictures_rosmsg.command = "take" 
