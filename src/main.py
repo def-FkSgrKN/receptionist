@@ -71,13 +71,16 @@ class Main:
         
     
     #時間制御の関数
-    def control(self, twist, move_time, linear_x=0, angular_z=0):
+    def control(self, move_time, linear_x=0, angular_z=0):
         start_time = time.time() #開始時刻
+        
+        twist = Twist()
         
         twist.linear.x = linear_x
         twist.angular.z = angular_z
         
         while True:
+            
             end_time = time.time() #終了時刻
             #print(end_time - start_time)
             
@@ -133,11 +136,11 @@ class Main:
                     #self.img_velocity_x_mid = self.img_detect_x_mid_list[self.img_argmax_w] - self.img_x_mid_before
                     
                     # 平滑化あり 
-                    if self.img_detect_width_ave > self.WIDTH/2:
+                    if self.img_detect_width_ave > self.WIDTH * 2/3:
                         twist.linear.x = 0
                     
                     else:
-                        twist.linear.x = -(self.WIDTH/2 - self.img_detect_width_ave) / self.WIDTH/3 * 2
+                        twist.linear.x = -(self.WIDTH * 2/3 - self.img_detect_width_ave) / self.WIDTH/3 * 2
                         
                     
                     if self.img_detect_x_mid_ave > self.WIDTH * 5/12 and self.img_detect_x_mid_ave < self.WIDTH * 7/12:
@@ -145,6 +148,9 @@ class Main:
                         
                     else:
                         twist.angular.z = -(self.img_detect_x_mid_ave - self.WIDTH/2) / (self.WIDTH/2) * 1.8
+
+                    if twist.angular.z == 0 and twist.angular.x == 0:
+                        break
 
                     #コメントを外して、平滑化なし
                     """
@@ -164,8 +170,20 @@ class Main:
             
                     print("twist.linear.x=" + str(twist.linear.x) + ", twist.angular.z=" + str(twist.angular.z))
                     
+
+
+                #人が写っていない場合
+                else:
+                    twist.angular.z = 0.8
+                    twist.linear.x = 0
+                
+            #ものでさえ写っていない場合
+            else:
+                twist.angular.z = 0.8
+                twist.linear.x = 0
+            
                         
-                    self.velocity_pub.publish(twist)
+            self.velocity_pub.publish(twist)
                     
             
     """
@@ -338,22 +356,38 @@ class Main:
                         time.sleep(0.1)
                         
                         
-                    elif nearest_chair_identify_count == 20:
+                    elif nearest_chair_identify_count == 10:
                         tracking_chair_idx = statistics.mode(nearest_chair_identify_idx_list)
                         nearest_chair_identify_count += 1
                         
                         
-                    elif nearest_chair_identify_count > 20:
-                        if len(self.img_detect_class_list) >= tracking_chair_idx:
-                            
-                            max_chair_width = max(chair_width_list)
-                            tracking_chair_idx = chair_width_list.index(max_chair_width)
+                    
+                    if len(chair_width_list) >= tracking_chair_idx:
                         
+                        max_chair_width = max(chair_width_list)
+                        tracking_chair_idx = chair_width_list.index(max_chair_width)
+                    
+                    
+                    #十分に近づいていた場合    
+                    if chair_width_list[tracking_chair_idx] > self.WIDTH/2 - 20 and chair_width_list[tracking_chair_idx] < self.WIDTH/2 + 20:
+                        break
+                    
+                    else:
+                        twist.linear.x = -(self.WIDTH/2 - chair_width_list[tracking_chair_idx]) / self.WIDTH/3 * 2
+                        twist.angular.z = -(chair_x_mid_list[tracking_chair_idx] - self.WIDTH/2) / (self.WIDTH/2) * 1.5
+            
+                else:
+                    twist.angular.z = 0.8
+                    twist.linear.x = 0
+            
+            else:
+                twist.angular.z = 0.8
+                twist.linear.x = 0
+                
+            
                         
-                        #十分に近づいていた場合    
-                        if chair_width_list[tracking_chair_idx] > self.WIDTH/2 - 20 and chair_width_list[tracking_chair_idx] < self.WIDTH/2 + 20:
-                            break
-                        
+            self.velocity_pub.publish(twist)     
+                    
                         
                         
                         
@@ -540,11 +574,17 @@ class Main:
         
         time.sleep(8)
         
-        #self.follow_new_guest()   
+        for i in range(3):
         
-        #self.invite_new_guest()
-        
-        self.detect_old_guests_and_chair()
+            self.follow_new_guest()   
+            
+            #MOVETIME = 7
+            #ANG_Z = 0.8
+            #self.control(move_time=MOVETIME, angular_z=ANG_Z)
+            
+            #self.invite_new_guest()
+            
+            self.detect_old_guests_and_chair()
         
         """
         self.Img_take_pictures_rosmsg.command = "take" 
