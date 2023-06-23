@@ -12,6 +12,11 @@ from receptionist.msg import Img_detect, Img_take_pictures
 
 from UDP_libs.UDP_server import UDP_Server
 
+#sound
+from speech_and_NLP.src.textToSpeech import textToSpeech #発話
+from speech_and_NLP.src.speechToText import recognize_speech #音声認識
+from speech_and_NLP.src.tools.speech_to_text.findNearestWord import find_nearest_word #文章の中に単語を検索する
+
 class Main:
     def __init__(self):
         rospy.init_node("main")
@@ -533,7 +538,13 @@ class Main:
         
         
      
-    def main_ROS(self):       
+    def main_ROS(self):    
+
+        textToSpeech("I have a pen.", gTTS_lang='en')
+        
+        res = recognize_speech(print_partial=True, use_break=1, lang='en-us')
+        
+        textToSpeech(res, gTTS_lang='en')
         """
         椅子と古参のゲストの集合写真を撮影する
         """
