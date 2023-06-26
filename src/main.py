@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.6
+#!/usr/bin/env python3.8
 # -*- coding: utf-8 -*-
 
 import rospy
@@ -262,7 +262,7 @@ class Main:
                     #self.img_velocity_x_mid = self.img_detect_x_mid_list[self.img_argmax_w] - self.img_x_mid_before
                     
                     # 平滑化あり 
-                    if self.img_detect_width_ave > self.WIDTH/2:
+                    if self.img_detect_width_ave > self.WIDTH * 2/3:
                         twist.linear.x = 0
                     
                     else:
@@ -402,8 +402,14 @@ class Main:
         turn_delta_time = 0
         
         detect_two_things_count = 0
-            
-        
+    
+
+        #最頻値を調べるリスト
+        left_thing_class_list = []
+        mid_thing_class_list = []
+        right_thing_class_list = []
+
+
         while True:
                 
             twist = Twist()
@@ -464,13 +470,18 @@ class Main:
                             print("tracking_x_mid=" + str(tracking_x_mid))
                     
                         """
+                    """
                     elif tracking_x_mid <= 2/6 * self.WIDTH:
                         print("左端:" + str(img_detect_class_list[x_mid_ndarray_sorted_list[tail_idx]]))
+                        left_thing_class_list.append(img_detect_class_list[x_mid_ndarray_sorted_list[tail_idx]])
+
                         twist.angular.z = -1
-                    
+                    """                    
                         
                     elif tracking_x_mid > 1/2 * self.WIDTH and len(img_detect_class_list) >= 2:
                         print("左端:" + str(img_detect_class_list[x_mid_ndarray_sorted_list[tail_idx]]))
+                        left_thing_class_list.append(img_detect_class_list[x_mid_ndarray_sorted_list[tail_idx]])
+
                         twist.angular.z = -1
                         
                         
@@ -515,6 +526,9 @@ class Main:
                     elif len(img_detect_class_list) >= 2 and tracking_x_mid < 1/2 * self.WIDTH:
                         print("中央:" + str(img_detect_class_list[x_mid_ndarray_sorted_list[1]]))
                         print("右端:" + str(img_detect_class_list[x_mid_ndarray_sorted_list[0]]))
+                        mid_thing_class_list.append(img_detect_class_list[x_mid_ndarray_sorted_list[1]])
+                        right_thing_class_list.append(img_detect_class_list[x_mid_ndarray_sorted_list[0]])
+
                         detect_two_things_count += 1
                         twist.angular.z = 1
                         
@@ -565,6 +579,15 @@ class Main:
                     
             self.velocity_pub.publish(twist)                
         
+        #左端、中央、右端の物体のクラスの変数
+        left_thing_class = statistics.mode(left_thing_class_list)
+        mid_thing_class = statistics.mode(mid_thing_class_list)
+        right_thing_class = statistics.mode(right_thing_class_list)
+
+        """
+        どこに新しいゲストを案内するかを決める
+        """
+
         
      
     def main_ROS(self):       
@@ -584,7 +607,7 @@ class Main:
             
             #self.invite_new_guest()
             
-            self.detect_old_guests_and_chair()
+            #self.detect_old_guests_and_chair()
         
         """
         self.Img_take_pictures_rosmsg.command = "take" 
