@@ -12,6 +12,10 @@ from receptionist.msg import Img_detect, Img_take_pictures
 
 from UDP_libs.UDP_server import UDP_Server
 
+#control 
+from control_libs.point_to_point import PointToPoint
+
+
 #sound
 from speech_and_NLP.src.textToSpeech import textToSpeech #発話
 from speech_and_NLP.src.speechToText import recognize_speech #音声認識
@@ -931,17 +935,81 @@ class Main:
                 first_string = "Hi,Operater!" + name + "likes" + drink
                 
                 textToSpeech(first_string, gTTS_lang='en')
+    
+
+
+    def move_point(self):
+
+        GOAL = [
+            [1.3657, 0.0328, np.pi/2],
+            [-0.4410, 0.0328, 0]
+        ]
+
+        p = PointToPoint()
+        time.sleep(2)
+
+        textToSpeech("目標1に行きます!")
+
+        p.send_goal(GOAL[0])
+
+        time.sleep(10)
+
+        self.follow_new_guest()   
+
+        #x座標を10等分
+        """
+        CUT_NUM = 10
+        for i in range(CUT_NUM):
+            pos_x = GOAL[0][0] * (i+1) / CUT_NUM
+            pos_y = GOAL[0][1]
+            pos_theta = GOAL[0][2]
+
+            pos = [pos_x, pos_y, pos_theta]
+
+            p.send_goal(pos)
+
+            time.sleep(1)
+        """
 
 
 
+        while True:
+            rospy.loginfo("1")
+            if p.status == 3:
+                break
 
 
+        time.sleep(5)
+
+        textToSpeech("目標2に行きます!")
+        textToSpeech("ついてきてください。フォローミー")
+
+        p.send_goal(GOAL[1])
+
+        while True:
+            rospy.loginfo("2")
+            if p.status == 3:
+                break
+
+        """
+        p.send_goal(GOAL[2])
         
+        while True:
+            rospy.loginfo("3")
+            if p.status == 3:
+                break
+        """
+
+
+    
         
 if __name__ == "__main__":
     main_instance = Main()
     #main_instance.main_UDP()
-    main_instance.main_ROS()
+    time.sleep(10)
+    main_instance.move_point()
+
+    #main_instance.main_ROS()
     
     #main_instance.audio_use()
 
