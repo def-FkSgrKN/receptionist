@@ -12,6 +12,18 @@ from receptionist.msg import Img_detect, Img_take_pictures
 
 from UDP_libs.UDP_server import UDP_Server
 
+#sound
+from speech_and_NLP.src.textToSpeech import textToSpeech #発話
+from speech_and_NLP.src.speechToText import recognize_speech #音声認識
+from speech_and_NLP.src.speechToText import recognize_speech #音声認識
+from speech_and_NLP.src.tools.speech_to_text.extractPersonNameEnglish import extract_names#与えた文から名前を文字列で返す
+from speech_and_NLP.src.tools.speech_to_text.extractFavoriteDrinks import extract_favorite_drinks#与えた文から好きな飲み物の名前を文字列で返す
+
+import speech_recognition as sr
+import pyaudio
+
+from audio_libs.BERT_QandA_exp import roberta_model_set, roberta_model_res
+
 class Main:
     def __init__(self):
         rospy.init_node("main")
@@ -52,7 +64,7 @@ class Main:
         
         
         # udp
-        self.IP_ADRESS = "127.0.0.1"
+        self.IP_ADRESS = "127.0.0.10"
         self.PORT = 8890
         #self.UDP_SERVER = UDP_Server(self.IP_ADRESS, self.PORT)
         
@@ -95,11 +107,15 @@ class Main:
     """ 
     def follow_new_guest(self):
     
-        
+        stop_start_time = 0
+        STOP_DELTA_TIME = 2
+
         while True:
                     
             twist = Twist()
             
+            stop_end_time = time.time()
+
             #何か写っている
             if len(self.img_detect_class_list) != 0:
                 
@@ -136,11 +152,11 @@ class Main:
                     #self.img_velocity_x_mid = self.img_detect_x_mid_list[self.img_argmax_w] - self.img_x_mid_before
                     
                     # 平滑化あり 
-                    if self.img_detect_width_ave > self.WIDTH * 2/3:
+                    if self.img_detect_width_ave > self.WIDTH * 1/2:
                         twist.linear.x = 0
                     
                     else:
-                        twist.linear.x = -(self.WIDTH * 2/3 - self.img_detect_width_ave) / self.WIDTH/3 * 2
+                        twist.linear.x = -(self.WIDTH * 1/2 - self.img_detect_width_ave) / self.WIDTH/3 * 2
                         
                     
                     if self.img_detect_x_mid_ave > self.WIDTH * 5/12 and self.img_detect_x_mid_ave < self.WIDTH * 7/12:
@@ -149,8 +165,10 @@ class Main:
                     else:
                         twist.angular.z = -(self.img_detect_x_mid_ave - self.WIDTH/2) / (self.WIDTH/2) * 1.8
 
-                    if twist.angular.z == 0 and twist.angular.x == 0:
+                    #終了処理
+                    if twist.angular.z == 0 and twist.linear.x == 0:
                         break
+
 
                     #コメントを外して、平滑化なし
                     """
@@ -305,6 +323,8 @@ class Main:
         nearest_chair_identify_idx_list = [] #最も近い椅子を最頻値で決める
         tracking_chair_idx = 0
         
+        find_count = 0
+
         #椅子の矩形が3分の1になるまで微調整
         while True:
             twist = Twist()
@@ -330,13 +350,15 @@ class Main:
                         chair_idx_list.append(i)
                         chair_x_mid_list.append(img_detect_x_mid_list[i])
                         chair_width_list.append(img_detect_width_list[i])
+
+                        find_count = 1 #椅子が見つかったら回転しないようにする
                     
-                print("chair_idx_list=" + str(chair_idx_list))
-                print("chair_x_mid_list=" + str(chair_x_mid_list))
-                print("chair_width_list=" + str(chair_width_list))
+                #print("chair_idx_list=" + str(chair_idx_list))
+                #print("chair_x_mid_list=" + str(chair_x_mid_list))
+                #print("chair_width_list=" + str(chair_width_list))
 
                 
-                if len(chair_idx_list) != 0:
+                if len(chair_idx_list) > tracking_chair_idx:
                 
                     #初回20回は追いかける椅子を調べる            
                     if nearest_chair_identify_count < 20:
@@ -369,7 +391,7 @@ class Main:
                     
                     
                     #十分に近づいていた場合    
-                    if chair_width_list[tracking_chair_idx] > self.WIDTH/2 - 20 and chair_width_list[tracking_chair_idx] < self.WIDTH/2 + 20:
+                    if chair_width_list[tracking_chair_idx] > self.WIDTH/3 - 30 and chair_width_list[tracking_chair_idx] < self.WIDTH/3 + 50:
                         break
                     
                     else:
@@ -377,12 +399,28 @@ class Main:
                         twist.angular.z = -(chair_x_mid_list[tracking_chair_idx] - self.WIDTH/2) / (self.WIDTH/2) * 1.5
             
                 else:
+                    time.sleep(1)
+
+                    """
+                    if find_count == 0:
+                        twist.angular.z = 0.8
+                        twist.linear.x = 0
+
+                    elif find_count == 1:
+                        twist.angular.z = 0
+                        twist.linear.x = 0.1
+                    """
+
+            else:
+                time.sleep(1)
+
+                if find_count == 0:
                     twist.angular.z = 0.8
                     twist.linear.x = 0
-            
-            else:
-                twist.angular.z = 0.8
-                twist.linear.x = 0
+
+                elif find_count == 1:
+                        twist.angular.z = 0
+                        twist.linear.x = 0.1
                 
             
                         
@@ -410,6 +448,83 @@ class Main:
         right_thing_class_list = []
 
 
+        LMR_thing_class_list = ["chair", "chair", "chair"]
+
+
+        #視界に人、椅子を含め3つになるまで下がる
+        while True:
+            if len(self.img_detect_class_list) != 3:
+                break
+
+
+        #exit()
+
+
+        """
+        realsenseを使用する場合、視野が広いためすべてを視野に含めやすい
+
+        """
+        while True:
+
+            twist = Twist()
+                
+            #コピーすることで、中のif文やwhile文のときに新しいデータに書き換えられ、listの長さが変わることを防ぐ
+            
+            img_detect_class_list = []
+            img_detect_x_mid_list = []
+            
+            #状態4で終了
+            if tracking_state == 4:
+                break
+            
+            #書き換え防止
+            if len(self.img_detect_class_list) != 0:          
+                img_detect_class_list = list(self.img_detect_class_list).copy()
+                img_detect_x_mid_list = list(self.img_detect_x_mid_list).copy()
+
+            #すべて視界に写ったとき
+            if len(img_detect_class_list) == 3:
+
+                #ロボットから見て左に映る順に並び替え
+                #numpyのargsortを使う
+                x_mid_ndarray = np.array(img_detect_x_mid_list)
+                x_mid_ndarray_sorted_list = np.argsort(x_mid_ndarray).tolist()
+
+
+                print("左:" + img_detect_class_list[x_mid_ndarray_sorted_list[0]])
+                print("中:" + img_detect_class_list[x_mid_ndarray_sorted_list[1]])
+                print("右:" + img_detect_class_list[x_mid_ndarray_sorted_list[2]])
+
+                chair_name = "left"
+
+                for i in len(img_detect_class_list):
+                    
+                    #番号が若い順に椅子がある
+                    if img_detect_class_list[x_mid_ndarray_sorted_list[i]] == "chair":
+
+                        if i == 0:
+                            chair_name = "left"
+
+                        elif i == 1:
+                            chair_name = "mid"
+
+                        elif i == 2:
+                            chair_name = "right"
+
+                        break
+
+                #ゲストを着席させる
+                inviting_new_guest_txt = "Please sit down the " + chair_name + " chair."
+                textToSpeech(inviting_new_guest_txt, gTTS_lang='en')
+                        
+
+
+
+        exit()
+
+        """
+        内蔵カメラや小型usbカメラを使用する場合、視野が狭いためすべてを視野に含めるのは難しい
+        """
         while True:
                 
             twist = Twist()
@@ -470,14 +585,14 @@ class Main:
                             print("tracking_x_mid=" + str(tracking_x_mid))
                     
                         """
-                    """
-                    elif tracking_x_mid <= 2/6 * self.WIDTH:
-                        print("左端:" + str(img_detect_class_list[x_mid_ndarray_sorted_list[tail_idx]]))
-                        left_thing_class_list.append(img_detect_class_list[x_mid_ndarray_sorted_list[tail_idx]])
+                        """
+                        elif tracking_x_mid <= 2/6 * self.WIDTH:
+                            print("左端:" + str(img_detect_class_list[x_mid_ndarray_sorted_list[tail_idx]]))
+                            left_thing_class_list.append(img_detect_class_list[x_mid_ndarray_sorted_list[tail_idx]])
 
-                        twist.angular.z = -1
-                    """                    
-                        
+                            twist.angular.z = -1
+                        """                    
+                            
                     elif tracking_x_mid > 1/2 * self.WIDTH and len(img_detect_class_list) >= 2:
                         print("左端:" + str(img_detect_class_list[x_mid_ndarray_sorted_list[tail_idx]]))
                         left_thing_class_list.append(img_detect_class_list[x_mid_ndarray_sorted_list[tail_idx]])
@@ -566,11 +681,11 @@ class Main:
             
             else:
                 if tracking_state == 1:
-                    twist.angular.z = 1
+                    twist.angular.z = 0.7
                     twist.linear.x = 0.15
                 
                 elif tracking_state == 2:
-                    twist.angular.z = -1
+                    twist.angular.z = -0.7
                     twist.linear.x = 0.15
                     
                 time.sleep(0.1)
@@ -580,9 +695,16 @@ class Main:
             self.velocity_pub.publish(twist)                
         
         #左端、中央、右端の物体のクラスの変数
-        left_thing_class = statistics.mode(left_thing_class_list)
-        mid_thing_class = statistics.mode(mid_thing_class_list)
-        right_thing_class = statistics.mode(right_thing_class_list)
+        if len(left_thing_class_list) != 0: 
+            LMR_thing_class_list[0] = statistics.mode(left_thing_class_list)
+
+        if len(mid_thing_class_list) != 0:
+            LMR_thing_class_list[1] = statistics.mode(mid_thing_class_list)
+
+        if len(right_thing_class_list) != 0:
+            LMR_thing_class_list[2] = statistics.mode(right_thing_class_list)
+
+        print("左:" + LMR_thing_class_list[0] + "、中:" + LMR_thing_class_list[1] + "、右:" + LMR_thing_class_list[2])
 
         """
         どこに新しいゲストを案内するかを決める
@@ -595,19 +717,26 @@ class Main:
         椅子と古参のゲストの集合写真を撮影する
         """
         
-        time.sleep(8)
+        time.sleep(10)
         
-        for i in range(3):
+        #for i in range(3):
+        textToSpeech("follow_new_guest", gTTS_lang='en')
+        #self.follow_new_guest()   
+            
+        #MOVETIME = 7
+        #ANG_Z = 0.8
+        #self.control(move_time=MOVETIME, angular_z=ANG_Z)
         
-            self.follow_new_guest()   
-            
-            #MOVETIME = 7
-            #ANG_Z = 0.8
-            #self.control(move_time=MOVETIME, angular_z=ANG_Z)
-            
-            #self.invite_new_guest()
-            
-            #self.detect_old_guests_and_chair()
+        time.sleep(2)
+        
+        textToSpeech("control", gTTS_lang='en')
+        #self.invite_new_guest()
+        #self.control(2, linear_x=0, angular_z=-1)
+
+
+        textToSpeech("detect_old_guests_and_chair", gTTS_lang='en')
+        self.detect_old_guests_and_chair()
+
         
         """
         self.Img_take_pictures_rosmsg.command = "take" 
@@ -682,9 +811,139 @@ class Main:
         self.control(TURN_TIME/2, angular_z=0.7)
         time.sleep(1)
         self.control(TURN_TIME, angular_z=-0.7)       
+
+
+
+
+
+    def listing_recognition(self):
+
+        # Define the microphone as the audio source
+        microphone = sr.Microphone()
+
+        # Create a recognizer object
+        recognizer = sr.Recognizer()
+
+        # Set the language for speech recognition
+        language = 'en-US'  # Update with the desired language code
+
+        spoken_texts_list = []
+
+        # Function to process the audio data
+        def process_audio():
+            text = ""
+
+            with microphone as source:
+                print("Listening...")
+                audio = recognizer.listen(source)
+
+            try:
+                # Perform speech recognition
+                text = recognizer.recognize_google(audio, language=language)
+                print("Recognized:", text)
+            except sr.UnknownValueError:
+                print("Could not understand audio")
+            except sr.RequestError as e:
+                print("Error:", str(e))
+
+            return text
+
+        # Continuously listen for audio input and process it
+        with microphone as source:
+            recognizer.adjust_for_ambient_noise(source)  # Adjust for ambient noise
+
+        for i in range(3):
+            try:
+                text = process_audio()
+                spoken_texts_list.append(text)
+            except KeyboardInterrupt:
+                print("Interrupted")
+                break
+        
+        return spoken_texts_list
+
+
+
+
+       #使用例
+    def nlp_use(self, context):
+        
+        nlp = roberta_model_set()
+        
+        """
+        QA_input = {
+            'question': 'Why is model conversion important?',
+            'context': 'The option to convert models between FARM and transformers gives freedom to the user and let people easily switch between frameworks.'
+        }
+        """
+
+        QA_input1 = {
+            'question': 'What is name?',
+            'context': context
+        }
+
+        QA_input2 = {
+            'question': 'What is favorite drink?',
+            'context': context
+        }
+
+        QA_input_list = [QA_input1, QA_input2]
+
+        #返答
+        res_list =  roberta_model_res(nlp, QA_input_list)
+        
+        name = "unknown"
+        drink = "unknown"
+        
+        print("res_list=" + str(res_list))  
+        #print("len(res_list)=" + str())
+
+        name = res_list[0]['answer']
+        drink = res_list[1]['answer']
+
+        name_score = res_list[0]['score']
+        drink_score = res_list[1]['score']
+
+        
+        #名前と好きな飲み物を取得する   
+        #print("name=" + name)
+        #print("drink=" + drink)
+
+        return name, drink, name_score, drink_score
+
+
+    def audio_use(self):
+        #文を喋らす
+        #textToSpeech("I have a pen.", gTTS_lang='en')
+        textToSpeech("What is your name and favorite drink.", gTTS_lang='en')
+        
+        #文を聞き取る．返り値が聞き取った文字列
+        #res = recognize_speech(print_partial=True, remove_space=False, use_break=5, lang='en-us')
+        res_list = self.listing_recognition()
+        
+        
+        for res in res_list:
+
+            if res != "":
+
+                name, drink, name_score, drink_score = self.nlp_use(res)
+
+                first_string = "Hi,Operater!" + name + "likes" + drink
+                
+                textToSpeech(first_string, gTTS_lang='en')
+
+
+
+
+
         
         
 if __name__ == "__main__":
     main_instance = Main()
     #main_instance.main_UDP()
     main_instance.main_ROS()
+    
+    #main_instance.audio_use()
+
+    #spoken_texts_list = main_instance.listing_recognition()
+    #print("spoken_texts_list=" + str(spoken_texts_list))

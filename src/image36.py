@@ -23,6 +23,7 @@ import os
 
 from receptionist.msg import Img_detect, Img_take_pictures
 from image_libs.panolama_img import img_compose
+from image_libs.sample_pose_idpt_sitdown_img import sitdown_detect_set, sitdown_detect_loop
 
 """
 [方法1]
@@ -79,7 +80,8 @@ class Image36():
     self.img_take_pictures_command = ""
     
     #camera
-    self.PC_CAM_NUM = 0 #PC内蔵カメラのデバイス番号
+    #self.PC_CAM_NUM = 0 #PC内蔵カメラのデバイス番号
+    self.PC_CAM_NUM = 6 #PC内蔵カメラのデバイス番号
     self.camera = cv2.VideoCapture(self.PC_CAM_NUM)        
     
     self.PERSON_CLS_STR = "person"
@@ -173,6 +175,8 @@ class Image36():
     take_pictures_end_time = 0
     TAKE_PICTURES_DELTA_TIME = 1 #[s]
 
+    #姿勢推定
+    #pose, enable_segmentation, segmentation_score_th, use_brect, plot_world_landmark, ax= sitdown_detect_set()
 
 
     while True:
@@ -301,6 +305,9 @@ class Image36():
       width_list = []
       height_list = []
       
+      PERSON_DETECT_MIN = 50
+      CHAIR_DETECT_MIN = 50
+
       for *box, conf, cls in results.xyxy[0]:  # xyxy, confidence, class
 
           box_c_x = int((int(box[0]) + int(box[2]))/2) #中心x座標
@@ -308,15 +315,17 @@ class Image36():
           width = int(box[2] - box[0]) #幅
           height = int(box[3] - box[1]) #高さ　
           
+          
+          """
           x_mid_list.append(box_c_x)
           y_mid_list.append(box_c_y)
           width_list.append(width)
           height_list.append(height)
-          
+          """         
           
 
           #椅子であった場合に、
-          if int(cls) == CHAIR_CLS:
+          if int(cls) == CHAIR_CLS and width > CHAIR_DETECT_MIN:
       
             #椅子の中心x座標を習得する
             """
@@ -324,10 +333,27 @@ class Image36():
             chair_box_idx_list.append(idx)
             chair_box_cx_list.append(chair_box_cx)
             """
+            x_mid_list.append(box_c_x)
+            y_mid_list.append(box_c_y)
+            width_list.append(width)
+            height_list.append(height)
+
             class_list.append(self.CHAIR_CLS_STR)
 
+            frame_color = (0,255,255)        #枠用  :青色
+
+            #枠描画
+            cv2.rectangle(
+                imgs,
+                (int(box[0]), int(box[1])), #xmin, ymin
+                (int(box[2]), int(box[3])), #xmax, ymax
+                color=frame_color, #枠の色
+                thickness=2, #幅2
+                )
+            
+
           #人であった場合に、
-          if int(cls) == PERSON_CLS:
+          elif int(cls) == PERSON_CLS and width > PERSON_DETECT_MIN:
             
             #椅子の中心x座標を習得する
             """
@@ -335,14 +361,38 @@ class Image36():
             person_box_idx_list.append(idx)
             person_box_cx_list.append(person_box_cx)
             """
+            x_mid_list.append(box_c_x)
+            y_mid_list.append(box_c_y)
+            width_list.append(width)
+            height_list.append(height)
+
             class_list.append(self.PERSON_CLS_STR)
+
+            #img[top : bottom, left : right]
+            person_cut_img = imgs[int(box[1]):int(box[3]), int(box[0]):int(box[2])]
+
+            #pose_str = sitdown_detect_loop(person_cut_img, pose, enable_segmentation, segmentation_score_th, use_brect, plot_world_landmark, ax)
+            #print("pose_str=" + pose_str)
+
+            frame_color = (255,255,0)        #枠用  :青色
+
+            #枠描画
+            cv2.rectangle(
+                imgs,
+                (int(box[0]), int(box[1])), #xmin, ymin
+                (int(box[2]), int(box[3])), #xmax, ymax
+                color=frame_color, #枠の色
+                thickness=2, #幅2
+                )
+
             
-          idx += 1 #添字を加算する
+          #idx += 1 #添字を加算する
 
           #枠色 と 文字色 の指定
           frame_color = (255,0,0)        #枠用  :青色
           text_color = (255, 255, 255) #文字用:白色
 
+          """
           #枠描画
           cv2.rectangle(
               imgs,
@@ -351,6 +401,7 @@ class Image36():
               color=frame_color, #枠の色
               thickness=2, #幅2
               )
+          """
 
           #クラス名と信頼度を文字列変数に代入
           s = model.names[int(cls)]+":"+'{:.1f}'.format(float(conf)*100)

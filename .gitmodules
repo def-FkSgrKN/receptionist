@@ -1,0 +1,6 @@
+[submodule "src/speech_and_NLP"]
+	path = src/speech_and_NLP
+	url = https://github.com/rionehome/speech_and_NLP
+[submodule "speech_and_NLP"]
+	path = speech_and_NLP
+	url = git@github.com:rionehome/speech_and_NLP.git

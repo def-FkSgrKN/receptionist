@@ -57,7 +57,9 @@ def sitdown_detect_set():
 
 
 #繰り返し呼び出す関数
-def sitdown_detect_roop(image, pose, enable_segmentation, segmentation_score_th, use_brect, plot_world_landmark, ax):
+def sitdown_detect_loop(image, pose, enable_segmentation, segmentation_score_th, use_brect, plot_world_landmark, ax):
+
+    pose_str = "unknown"
 
     
     #display_fps = cvFpsCalc.get()
@@ -83,7 +85,7 @@ def sitdown_detect_roop(image, pose, enable_segmentation, segmentation_score_th,
         # 外接矩形の計算
         brect = calc_bounding_rect(debug_image, results.pose_landmarks)
         # 描画
-        debug_image = draw_landmarks(
+        debug_image, pose_str = draw_landmarks(
             debug_image,
             results.pose_landmarks,
             # upper_body_only,
@@ -107,12 +109,12 @@ def sitdown_detect_roop(image, pose, enable_segmentation, segmentation_score_th,
     #cv.putText(debug_image, "FPS:" + str(display_fps), (10, 30),
             #cv.FONT_HERSHEY_SIMPLEX, 1.0, fps_color, 2, cv.LINE_AA)
 
-
+    return pose_str
     # 画面反映 #############################################################
-    cv2.imshow('MediaPipe Pose Demo', debug_image)
+    #cv2.imshow('MediaPipe Pose Demo', debug_image)
 
-    cv2.waitkey(1000) #1秒待つ
-    cv2.destroyAllWindows()
+    #cv2.waitkey(1000) #1秒待つ
+    #cv2.destroyAllWindows()
 
 
 def calc_bounding_rect(image, landmarks):
@@ -163,6 +165,8 @@ def draw_landmarks(
     print("sitdown_list")
     #print(sitdown_list[0][4])
 
+    pose_str = "unknown"
+
 
     for index, landmark in enumerate(landmarks.landmark):
         landmark_x = min(int(landmark.x * image_width), image_width - 1)
@@ -197,7 +201,7 @@ def draw_landmarks(
         """
         座っていることを検出するための前提条件:左右の腰とひざが見えている必要性がある。
         """
-        if sitdown_list[2][4] > visibility_th and sitdown_list[3][4] > visibility_th and sitdown_list[4][4] > visibility_th and sitdown_list[5][4] > visibility_th:
+        if (sitdown_list[2][4] > visibility_th and sitdown_list[3][4] > visibility_th) and (sitdown_list[4][4] > visibility_th and sitdown_list[5][4] > visibility_th):
 
 
             #両足首マーカーが表示されている場合-->膝から足首の長さを使う   
@@ -218,9 +222,10 @@ def draw_landmarks(
 
                 if lumbus_and_knee_y_length < knee_and_ankle_y_length/2:
                     print("座っている")
+                    pose_str = "sit_down"
                 else:
                     print("立っているなどその他の姿勢")
-
+                    pose_str = "stand_up"
 
                 
             
@@ -242,12 +247,22 @@ def draw_landmarks(
 
                 if lumbus_and_knee_y_length < shoulder_and_lumbus_y_length/2:
                     print("座っている")
+                    pose_str = "sit_down"
                 else:
                     print("立っているなどその他の姿勢")
+                    pose_str = "stand_up"
 
-       
 
-        
+        #胴体だけが視界に入っている
+        #肩だけ
+        elif (sitdown_list[0][4] > visibility_th and sitdown_list[1][4] > visibility_th):
+            print("座っている")
+            pose_str = "sit_down"
+
+        #腰だけ
+        elif (sitdown_list[2][4] > visibility_th and sitdown_list[3][4] > visibility_th):
+            print("立っている")
+            pose_str = "stand_up"
 
         """
         if index == 0:  # 鼻
@@ -466,7 +481,7 @@ def draw_landmarks(
                     0] > visibility_th:
                 cv2.line(image, landmark_point[30][1], landmark_point[32][1],
                         (0, 255, 0), 2)
-    return image
+    return image, pose_str
 
 
 def plot_world_landmarks(
@@ -577,4 +592,5 @@ if __name__ == '__main__':
 
     image = cv2.imread("person/person_img.png")
 
-    sitdown_detect_roop(image, pose, enable_segmentation, segmentation_score_th, use_brect, plot_world_landmark, ax)
+    pose_str = sitdown_detect_loop(image, pose, enable_segmentation, segmentation_score_th, use_brect, plot_world_landmark, ax)
+    print("pose_str")

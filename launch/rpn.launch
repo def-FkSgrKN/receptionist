@@ -2,6 +2,18 @@
 <launch>
   <include file="$(find turtlebot_bringup)/launch/minimal.launch"/>
 
+  <!--navigationを行うために、必要なlaunchファイルを立ち上げる。-->
+  <include file="$(find tb2_mypkg)/launch/turtlebot_rplidar.launch"/>
+  <include file="$(find tb2_mypkg)/launch/turtlebot_emcl.launch"/>
+
+
+  <!--map args-->
+  <arg name="map_file" default="$(find receptionist)/map/techno-comp.yaml"/>
+
+  <!-- Run the map server -->
+  <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)" />
+
+
   <!-- open_manipulator_controllerもlaunchファイルから起動できるが終了するときにノードが終了するので別の端末で手動で起動するのをすすめる -->
   <!--include file="$(find open_manipulator_controller)/launch/open_manipulator_controller.launch"/-->
 
@@ -10,6 +22,6 @@
   <node pkg="receptionist" name="main" type="main.py" output="screen" />
   <!--node pkg="receptionist" name="control" type="control.py" output="screen" /-->
   <!--node pkg="receptionist" name="image" type="image.py" output="screen" /-->
-  <node pkg="receptionist" name="image36" type="image36.py" output="screen" />
+  <!--node pkg="receptionist" name="image36" type="image36.py" output="screen" /-->
  
 </launch>
